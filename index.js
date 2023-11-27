@@ -1,11 +1,24 @@
 const express = require("express");
-const app = express();
+const https = require("https");
 const http = require("http");
+const fs = require("fs");
 const cors = require("cors");
 const { Server } = require("socket.io");
+
+const app = express();
 app.use(cors());
-const server = http.createServer(app);
-const io = new Server(server, {
+
+const httpServer = http.createServer(app);
+
+// For testing purposes, generate a self-signed certificate
+const credentials = {
+  key: fs.readFileSync("server-key.pem"),
+  cert: fs.readFileSync("server-cert.pem"),
+};
+
+const httpsServer = https.createServer(credentials, app);
+
+const io = new Server(httpsServer, {
   cors: {
     origin: "https://client-chatapp.vercel.app/",
     methods: ["GET", "POST"],
@@ -19,6 +32,7 @@ io.on("connection", (socket) => {
     socket.join(data);
     console.log(`User with ID: ${socket.id} joined room: ${data}`);
   });
+
   socket.on("send_message", (data) => {
     socket.to(data.room).emit("receive_message", data);
   });
@@ -27,6 +41,15 @@ io.on("connection", (socket) => {
     console.log("User Disconnected", socket.id);
   });
 });
-server.listen(3001, () => {
-  console.log("SERVER RUNNING");
+
+// Choose the appropriate port for HTTP and HTTPS
+const httpPort = process.env.HTTP_PORT || 3000;
+const httpsPort = process.env.HTTPS_PORT || 3001;
+
+httpServer.listen(httpPort, () => {
+  console.log(`HTTP Server running on http://localhost:${httpPort}`);
+});
+
+httpsServer.listen(httpsPort, () => {
+  console.log(`HTTPS Server running on https://localhost:${httpsPort}`);
 });
